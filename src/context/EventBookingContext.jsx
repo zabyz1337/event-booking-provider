@@ -8,23 +8,25 @@ function formatDateKey(date) {
 }
 
 export function EventBookingProvider({ eventsData, children }) {
-  const initialDate = formatDateKey(eventsData[0].date);
-  const initialEvent = eventsData[0].events[0].id;
+  const initialDateKey = formatDateKey(eventsData[0].date);
+  const initialEventId = eventsData[0].events[0].id;
 
-  const [selectedDateKey, setSelectedDateKey] = useState(initialDate);
-  const [selectedEventId, setSelectedEventId] = useState(initialEvent);
+  const [selectedDateKey, setSelectedDateKey] = useState(initialDateKey);
+  const [selectedEventId, setSelectedEventId] = useState(initialEventId);
 
-  const selectedDateObj = useMemo(
-    () => eventsData.find((d) => formatDateKey(d.date) === selectedDateKey),
-    [eventsData, selectedDateKey],
-  );
+  const selectedDateObj = useMemo(() => {
+    return eventsData.find((d) => formatDateKey(d.date) === selectedDateKey);
+  }, [eventsData, selectedDateKey]);
 
   const eventsForDate = selectedDateObj?.events ?? [];
 
-  const selectedEvent = eventsForDate.find((ev) => ev.id === selectedEventId);
+  const selectedEvent = useMemo(() => {
+    return eventsForDate.find((ev) => ev.id === selectedEventId);
+  }, [eventsForDate, selectedEventId]);
 
   const [seatsState, setSeatsState] = useState(() => {
     const map = {};
+
     eventsData.forEach((day) => {
       day.events.forEach((ev) => {
         ev.seats.forEach((seat) => {
@@ -32,28 +34,36 @@ export function EventBookingProvider({ eventsData, children }) {
         });
       });
     });
+
     return map;
   });
 
-  const seatsForSelectedEvent = selectedEvent
-    ? selectedEvent.seats.map((seat) => ({
-        ...seat,
-        isSelected: seatsState[`${selectedEvent.id}:${seat.id}`],
-      }))
-    : [];
+  const seatsForSelectedEvent = useMemo(() => {
+    if (!selectedEvent) return [];
+
+    return selectedEvent.seats.map((seat) => ({
+      ...seat,
+      isSelected: seatsState[`${selectedEvent.id}:${seat.id}`],
+    }));
+  }, [selectedEvent, seatsState]);
 
   function selectDate(dateKey) {
     setSelectedDateKey(dateKey);
+
     const newDate = eventsData.find((d) => formatDateKey(d.date) === dateKey);
+
     setSelectedEventId(newDate?.events[0]?.id ?? null);
   }
 
-  function selectEvent(id) {
-    setSelectedEventId(id);
+  function selectEvent(eventId) {
+    setSelectedEventId(eventId);
   }
 
   function toggleSeat(seatId) {
+    if (!selectedEvent) return;
+
     const key = `${selectedEvent.id}:${seatId}`;
+
     setSeatsState((prev) => ({
       ...prev,
       [key]: !prev[key],
@@ -66,8 +76,8 @@ export function EventBookingProvider({ eventsData, children }) {
         eventsData,
         selectedDateKey,
         selectedEventId,
-        seatsForSelectedEvent,
         selectedEvent,
+        seatsForSelectedEvent,
         selectDate,
         selectEvent,
         toggleSeat,
@@ -79,5 +89,11 @@ export function EventBookingProvider({ eventsData, children }) {
 }
 
 export function useEventBooking() {
-  return useContext(EventBookingContext);
+  const context = useContext(EventBookingContext);
+
+  if (!context) {
+    throw new Error("useEventBooking must be used inside EventBookingProvider");
+  }
+
+  return context;
 }
